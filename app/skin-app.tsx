@@ -1,0 +1,120 @@
+'use client';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Sun, Moon, Plus, Check, ArrowLeft, ArrowRight, SlidersHorizontal, Droplets, Leaf, Pencil, Pause, Play, Trash2, X, ShieldCheck } from 'lucide-react';
+import { categories, currentPeriod, localDate, defaultSettings, rolesFor, schedulingFor, stageFor, stageLabels, functionalRoles, orderFor, type RoutineSettings, type RoutineStage, type Product, type Period, type RoutineLog } from '@/lib/model';
+import { appPath } from '@/lib/paths';
+import { generateRoutine } from '@/lib/engine';
+import { initializeCabinet, saveSettings, readData, saveProduct, deleteProduct, completeStep } from '@/lib/database';
+
+const blank = (): Product => ({ id: crypto.randomUUID(), brand: '', name: '', category: 'Cleanser', timeOfDay: 'both', routineOrder: 10, autoOrder: true, status: 'active', instruction: '', notes: '', openedDate: '', paoMonths: null, expirationDate: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+type Data = { products: Product[]; routines: RoutineLog[]; settings: RoutineSettings };
+export default function SkinApp() {
+  const [data, setData] = useState<Data>({ products: [], routines: [], settings: defaultSettings });
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [view, setView] = useState<'today' | 'products'>('today');
+  const [period, setPeriod] = useState<Period>('morning');
+  const [date, setDate] = useState('');
+  const [editor, setEditor] = useState<Product | null>(null);
+  const [filter, setFilter] = useState<'all' | Product['status']>('all');
+  const [busy, setBusy] = useState(false);
+  const lock = useRef(false);
+  const manualPeriod = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  async function refresh() { setData(await readData()); setReady(true); }
+  useEffect(() => {
+    const clock = () => { setDate(localDate()); if (!manualPeriod.current) setPeriod(currentPeriod()); };
+    clock();
+    const load = () => { if (document.visibilityState === 'visible') { clock(); void refresh().catch(() => setError('Your saved data could not be opened. Please reload to try again.')); } };
+    void initializeCabinet().then(refresh).catch(() => setError('Local storage is unavailable. Check your browser settings, then reload.'));
+    const timer = setInterval(clock, 30000);
+    document.addEventListener('visibilitychange', load);
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('skin-ritual-updates') : null;
+    if (channel) channel.onmessage = load;
+    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+      void navigator.serviceWorker.register(appPath('sw.js'), { scope: appPath(''), updateViaCache: 'none' }).then(registration => registration.update()).catch(() => setNotice('Offline setup was unavailable. You can still use the app online.'));
+    }
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', load); channel?.close(); };
+  }, []);
+  async function mutate(action: () => Promise<void>, message = '') {
+    if (lock.current) return false;
+    lock.current = true; setBusy(true); setError(''); setNotice('');
+    try {
+      await action(); await refresh(); setNotice(message);
+      if (typeof BroadcastChannel !== 'undefined') { const channel = new BroadcastChannel('skin-ritual-updates'); channel.postMessage('changed'); channel.close(); }
+      return true;
+    } catch { setError('That change could not be saved. Your input is still here; please try again.'); return false; }
+    finally { lock.current = false; setBusy(false); }
+  }
+  function edit(product?: Product) { opener.current = document.activeElement as HTMLElement; setEditor(product ?? blank()); }
+  function closeEditor() { setEditor(null); requestAnimationFrame(() => opener.current?.focus()); }
+  const log = data.routines.find(r => r.id === `${date}:${period}`);
+  const plan = generateRoutine(data.products, period, data.routines, new Date(), data.settings);
+  const steps = log?.steps ?? plan.steps;
+  const decisions = log?.decisions ?? (log ? [] : plan.decisions);
+  const completed = steps.filter(s => s.completedAt).length;
+  const done = steps.length > 0 && completed === steps.length;
+  const active = data.products.filter(p => p.status === 'active').length;
+  const shownProducts = data.products.filter(p => filter === 'all' || p.status === filter).sort((a, b) => orderFor(a) - orderFor(b) || a.name.localeCompare(b.name));
+  return <div className="app-shell">
+    <header className="topbar"><a className="brand" href={appPath('')} aria-label="Skin Ritual home"><span className="brand-mark"><Droplets size={21} /></span>skin ritual<span className="brand-period">.</span></a><span className="private-label"><ShieldCheck size={15} /> Just for you</span></header>
+    <nav className="navigation" aria-label="Main navigation"><button onClick={() => setView('today')} aria-current={view === 'today' ? 'page' : undefined}><Sun size={18} /> Today</button><button onClick={() => setView('products')} aria-current={view === 'products' ? 'page' : undefined}><Droplets size={18} /> Products</button></nav>
+    <main>
+      {error && <div className="alert" role="alert">{error}{!ready && <button className="text-button" onClick={() => location.reload()}>Reload</button>}</div>}
+      {notice && <p className="notice" role="status">{notice}</p>}
+      {!ready ? <div className="empty loading" role="status">{error ? 'Your data has not been loaded.' : 'Opening your cabinet…'}</div> : view === 'today' ? <>
+        <div className="page-heading"><div><p className="eyebrow">{date && new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p><h1>A little time for you.</h1><p className="muted">Your routine, one step at a time.</p></div><span className="heading-icon">{period === 'morning' ? <Sun size={32} strokeWidth={1.3} /> : <Moon size={32} strokeWidth={1.3} />}</span></div>
+        <div className="today-layout"><section className="routine-panel" aria-label="Today's routine">
+          <div className="period-switch" aria-label="Routine time">{(['morning', 'evening'] as const).map(t => <button key={t} aria-pressed={period === t} onClick={() => { manualPeriod.current = true; setPeriod(t); setNotice(''); }}>{t === 'morning' ? <Sun size={17} /> : <Moon size={17} />} {t === 'morning' ? 'Morning' : 'Evening'}</button>)}</div>
+          <div className="routine-title"><h2>{period === 'morning' ? 'Start fresh' : 'Wind down'}</h2><span>{steps.length} {steps.length === 1 ? 'step' : 'steps'}</span></div>
+          {steps.length > 0 ? <>
+            <div className="progress-label"><span>{done ? 'All done for now' : `${completed} of ${steps.length} complete`}</span><span>{Math.round(completed / steps.length * 100)}%</span></div><div className="progress-track" role="progressbar" aria-label="Routine completion" aria-valuenow={completed} aria-valuemin={0} aria-valuemax={steps.length}><div style={{ width: `${completed / steps.length * 100}%` }} /></div>
+            <ol className="steps">{steps.map((step, i) => <li key={step.productId} className={step.completedAt ? 'step checked' : 'step'}><span className="step-number">{String(i + 1).padStart(2, '0')}</span><label className="step-content"><span className="step-category">{step.category}</span><span className="step-name">{step.name}</span>{step.brand && <span className="step-brand">{step.brand}</span>}{step.instruction && <span className="step-instruction">{step.instruction}</span>}<input className="step-checkbox" type="checkbox" checked={!!step.completedAt} disabled={busy} aria-label={`Mark ${step.name} complete`} onChange={e => void mutate(() => completeStep(date, period, step.productId, e.target.checked))} /><span className="checkbox-visual" aria-hidden="true">{step.completedAt && <Check size={18} />}</span></label></li>)}</ol>
+            <div className={`routine-footer ${done ? 'complete' : ''}`} role="status">{done ? <><Check size={18} /> Routine complete. Enjoy the rest of your {period === 'morning' ? 'day' : 'evening'}.</> : 'Check off each product as you use it.'}</div>
+            {log && <p className="snapshot-note">Routine started. Cabinet changes apply to your next routine.</p>}
+          </> : <div className="empty"><span className="empty-icon"><Droplets size={30} strokeWidth={1.3} /></span><h3>{data.products.length ? `Make room for your ${period}.` : 'Your routine starts here.'}</h3><p>{data.products.length ? `Check product schedules and routine preferences. Assign an active product to ${period} or both to see it here.` : 'Add the products you already use. We’ll put them in your order.'}</p><button className="primary" onClick={() => data.products.length ? setView('products') : edit()}>{data.products.length ? 'Open your cabinet' : 'Add your first product'}<Plus size={17} /></button></div>}
+          <details className="decision-details"><summary>Why these products?</summary><p className="field-help">{log ? 'Decisions saved when this routine started.' : 'Based on completed uses, roles, and your scheduling settings.'}</p>{decisions.map(d => <div key={d.productId} className="decision-row"><strong>{data.products.find(p => p.id === d.productId)?.name ?? log?.steps.find(p => p.productId === d.productId)?.name ?? 'Removed product'}</strong><span>{d.selected ? 'Selected' : 'Skipped'} · {d.reason}</span></div>)}</details>
+        </section><aside className="aside"><div className="aside-card"><span className="eyebrow">YOUR CABINET</span><h3>{active} active {active === 1 ? 'product' : 'products'}</h3><p>Add what you use. Pause what you’re taking a break from.</p><button className="text-button" onClick={() => setView('products')}>Manage products <ArrowRight size={16} /></button></div><details className="schedule-settings"><summary>Routine preferences</summary><p className="field-help">Editable app defaults, not medical advice. Changes apply to unstarted routines.</p><label>Routine intensity<select disabled={busy} value={data.settings.intensity} onChange={e => void mutate(() => saveSettings({ ...data.settings, intensity: e.target.value as RoutineSettings['intensity'] }))}><option value="gentle">Gentle · no intensive optional products</option><option value="normal">Normal · at most one intensive product</option><option value="active">Active · at most two intensive products</option></select></label><label>Optional steps (evening)<select disabled={busy} value={data.settings.maxOptionalSteps} onChange={e => void mutate(() => saveSettings({ ...data.settings, maxOptionalSteps: Number(e.target.value) }))}>{[0,1,2,3].map(n => <option key={n} value={n}>{n}</option>)}</select></label><p className="field-help">Morning has at most one optional step.</p><label className="toggle-row"><input disabled={busy} type="checkbox" checked={data.settings.avoidPoreSameDay} onChange={e => void mutate(() => saveSettings({ ...data.settings, avoidPoreSameDay: e.target.checked }))} /> Avoid combining pore pads and masks on the same day</label></details><div className="quiet-note"><Leaf size={21} strokeWidth={1.4} /><p>A simple ritual.<br />At your own pace.</p></div><details className="privacy"><summary>Saved on this device</summary><p>Starter cabinet included · app version 0.2.1</p><p>Your products and checkmarks stay in this browser. There’s no account or sync. Clearing website data removes them. Backup tools are planned.</p><p>After hosting, open the app in Safari and choose Share → Add to Home Screen. Your Home Screen app may have its own storage; use it consistently.</p></details></aside></div>
+      </> : <>
+        <div className="page-heading cabinet-heading"><div><p className="eyebrow">WHAT YOU REACH FOR</p><h1>Your cabinet.</h1><p className="muted">Only the products that belong in your routine.</p></div><button className="primary" onClick={() => edit()}><Plus size={18} /> Add product</button></div>
+        <div className="cabinet-toolbar"><div className="filters" aria-label="Filter products">{(['all', 'active', 'paused', 'finished'] as const).map(s => <button key={s} aria-pressed={filter === s} onClick={() => setFilter(s)}>{s[0].toUpperCase() + s.slice(1)}</button>)}</div><span className="sort-label"><SlidersHorizontal size={15} /> Routine order</span></div>
+        {shownProducts.length === 0 ? <div className="empty cabinet-empty"><Droplets size={32} strokeWidth={1.2} /><h3>{data.products.length ? `No ${filter === 'all' ? '' : filter} products yet.` : 'A home for your everyday essentials.'}</h3><p>{data.products.length ? 'Products with this status will appear here.' : 'Start with one product. You can build the rest as you go.'}</p><button className="primary" onClick={() => edit()}><Plus size={17} /> Add a product</button></div> : <div className="product-list">{shownProducts.map(p => <article className="product-row" key={p.id}><div className="product-order" title={stageLabels[stageFor(p)]}><Droplets size={16} /></div><div className="product-info"><p className="step-category">{p.category}</p><h3>{p.name}</h3>{p.brand && <p className="muted">{p.brand}</p>}<div className="product-meta">{p.seeded && <span className="status-tag">Editable default</span>}{!schedulingFor(p).enabled && <span className="status-tag">Schedule off</span>}<span>{p.timeOfDay === 'both' ? 'Morning & evening' : p.timeOfDay === 'morning' ? 'Morning' : 'Evening'}</span>{p.status !== 'active' && <span className="status-tag">{p.status}</span>}</div></div><div className="product-actions"><button className="icon-button" title={`Edit ${p.name}`} aria-label={`Edit ${p.name}`} onClick={() => edit(p)}><Pencil size={17} /></button><button className="icon-button" disabled={busy} title={p.status === 'active' ? 'Pause product' : 'Activate product'} aria-label={`${p.status === 'active' ? 'Pause' : 'Activate'} ${p.name}`} onClick={() => void mutate(() => saveProduct({ ...p, status: p.status === 'active' ? 'paused' : 'active', updatedAt: new Date().toISOString() }), p.status === 'active' ? 'Product paused.' : 'Product activated.')}>{p.status === 'active' ? <Pause size={17} /> : <Play size={17} />}</button></div></article>)}</div>}
+        <p className="cabinet-help">Steps follow product roles. “Both” means eligible morning and evening; rotation chooses a subset. All starter classifications and limits are editable defaults.</p>
+      </>}
+    </main><footer className="site-footer"><span>skin ritual.</span><span>A moment of care, every day.</span></footer>
+    {editor && <ProductEditor products={data.products} product={editor} existing={data.products.some(p => p.id === editor.id)} busy={busy} error={error} onClose={closeEditor} onSave={async p => { if (await mutate(() => saveProduct(p), 'Product saved.')) closeEditor(); }} onDelete={async () => { if (await mutate(() => deleteProduct(editor.id), 'Product deleted. Existing routine records are kept.')) closeEditor(); }} />}
+  </div>;
+}
+function ProductEditor({ products, product, existing, busy, error, onClose, onSave, onDelete }: { products: Product[]; product: Product; existing: boolean; busy: boolean; error: string; onClose: () => void; onSave: (p: Product) => Promise<void>; onDelete: () => Promise<void> }) {
+  const [draft, setDraft] = useState(product);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [validation, setValidation] = useState('');
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { dialog.current?.showModal(); }, []);
+  function field<K extends keyof Product>(key: K, value: Product[K]) { setDraft(p => ({ ...p, [key]: value })); }
+  function submit(e: FormEvent) { e.preventDefault(); if (!draft.name.trim()) { setValidation('Enter a product name.'); return; } setValidation(''); void onSave({ ...draft, name: draft.name.trim(), brand: draft.brand.trim(), updatedAt: new Date().toISOString() }); }
+  return <dialog ref={dialog} className="editor" aria-labelledby="editor-title" onCancel={e => { e.preventDefault(); if (!busy) onClose(); }}><form onSubmit={submit}>
+    <div className="editor-heading"><div><p className="eyebrow">YOUR CABINET</p><h2 id="editor-title">{existing ? 'Edit product' : 'Add a product'}</h2></div><button type="button" className="icon-button" disabled={busy} onClick={onClose} aria-label="Close product editor"><X size={21} /></button></div>
+    <div className="editor-body">{(validation || error) && <p role="alert" className="alert">{validation || error}</p>}
+      <label>Product name <span className="required">*</span><input autoFocus required maxLength={160} value={draft.name} onChange={e => field('name', e.target.value)} placeholder="e.g. Madagascar Centella Ampoule" /></label>
+      <label>Brand<input maxLength={100} value={draft.brand} onChange={e => field('brand', e.target.value)} placeholder="e.g. Skin1004" /></label>
+      <div className="form-grid"><label>Category<select value={draft.category} onChange={e => setDraft(p => ({ ...p, category: e.target.value as Product['category'], roles: undefined, stepOverride: null, autoOrder: true }))}>{categories.map(c => <option key={c}>{c}</option>)}</select></label><label>Routine step<select value={draft.stepOverride ?? ''} onChange={e => setDraft(p => ({ ...p, autoOrder: true, stepOverride: (e.target.value || null) as RoutineStage | null }))}><option value="">Automatic · {stageLabels[stageFor({ ...draft, stepOverride: null })]}</option>{Object.entries(stageLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+      <fieldset><legend>When do you use it?</legend><div className="assignment">{(['morning', 'evening', 'both'] as const).map(t => <label key={t}><input type="radio" name="time" value={t} checked={draft.timeOfDay === t} onChange={() => field('timeOfDay', t)} /><span>{t === 'both' ? 'Both' : t === 'morning' ? 'Morning' : 'Evening'}</span></label>)}</div></fieldset>
+      {draft.seeded && <p className="default-note">Starter product · all classifications and scheduling values below are editable defaults. Opening and expiration dates are intentionally blank.</p>}
+      <details className="extra-fields"><summary>Roles & scheduling</summary><p className="field-help">These describe app scheduling, not product safety or medical advice. Changing category resets inferred roles; review them here.</p><fieldset className="role-options"><legend>Functional roles</legend>{functionalRoles.map(role => <label key={role}><input type="checkbox" checked={rolesFor(draft).includes(role)} onChange={e => field('roles', e.target.checked ? [...rolesFor(draft), role] : rolesFor(draft).filter(r => r !== role))} />{role.replaceAll('_', ' ')}</label>)}</fieldset>
+      <label className="toggle-row"><input type="checkbox" checked={schedulingFor(draft).enabled} onChange={e => field('scheduling', { ...schedulingFor(draft), enabled: e.target.checked })} /> Include in automatic suggestions</label>
+      <label>Step importance<select value={schedulingFor(draft).core ? 'core' : 'optional'} onChange={e => field('scheduling', { ...schedulingFor(draft), core: e.target.value === 'core' })}><option value="core">Core · select within its function group</option><option value="optional">Optional · rotate with recent usage</option></select></label>
+      <label>Scheduling intensity<select value={schedulingFor(draft).intensity} onChange={e => field('scheduling', { ...schedulingFor(draft), intensity: e.target.value as 'gentle' | 'normal' | 'active' })}><option value="gentle">Gentle</option><option value="normal">Normal</option><option value="active">Active / intensive</option></select></label>
+      <div className="form-grid"><label>Minimum days apart<input type="number" min={0} max={365} step={1} value={schedulingFor(draft).minSpacingDays} onChange={e => field('scheduling', { ...schedulingFor(draft), minSpacingDays: Number(e.target.value) })} /></label><label>Maximum uses / 7 days<input type="number" min={1} max={14} step={1} placeholder="No limit" value={schedulingFor(draft).maxUsesPerWeek ?? ''} onChange={e => field('scheduling', { ...schedulingFor(draft), maxUsesPerWeek: e.target.value ? Number(e.target.value) : null })} /></label></div><p className="field-help">Spacing uses elapsed 24-hour days. Limits count completed uses over the preceding seven days; they are not usage recommendations.</p>
+      <label>Application area<input value={draft.applicationArea ?? ''} onChange={e => field('applicationArea', e.target.value)} placeholder="Optional" /></label>
+      {rolesFor(draft).includes('first_cleanse') && <label>Double-cleanse partner<select value={draft.pairWithId ?? ''} onChange={e => field('pairWithId', e.target.value || undefined)}><option value="">No linked partner</option>{products.filter(p => p.id !== draft.id && rolesFor(p).some(r => r === 'second_cleanse' || r === 'gentle_cleanse')).map(p => <option key={p.id} value={p.id}>{p.brand} {p.name}</option>)}{draft.pairWithId && !products.some(p => p.id === draft.pairWithId) && <option value={draft.pairWithId}>Removed partner · choose another</option>}</select></label>}
+      </details>
+      <details className="extra-fields"><summary>Advanced ordering</summary><label className="toggle-row"><input type="checkbox" checked={draft.autoOrder === false || draft.autoOrder === undefined && !draft.roles} onChange={e => field('autoOrder', !e.target.checked)} /> Use a custom order number</label>{(draft.autoOrder === false || draft.autoOrder === undefined && !draft.roles) && <label>Custom order<input type="number" min={0} max={999} step={1} value={draft.routineOrder} onChange={e => field('routineOrder', Number(e.target.value))} /></label>}<p className="field-help">Linked oil and foam stay together even with a custom order.</p></details>
+      <label>Short instruction<input maxLength={240} value={draft.instruction} onChange={e => field('instruction', e.target.value)} placeholder="e.g. 2–3 drops on damp skin" /></label>
+      <label>Status<select value={draft.status} onChange={e => field('status', e.target.value as Product['status'])}><option value="active">Active — include in routines</option><option value="paused">Paused — taking a break</option><option value="finished">Finished — keep in cabinet</option></select></label>
+      <details className="extra-fields"><summary>Dates & notes <span>Optional</span></summary><div className="form-grid"><label>Date opened<input type="date" max={localDate()} value={draft.openedDate} onChange={e => field('openedDate', e.target.value)} /></label><label>PAO (months)<input type="number" min={1} max={120} step={1} value={draft.paoMonths ?? ''} onChange={e => field('paoMonths', e.target.value ? Number(e.target.value) : null)} placeholder="e.g. 12" /></label></div><label>Printed expiration date<input type="date" value={draft.expirationDate} onChange={e => field('expirationDate', e.target.value)} /></label><label>Notes<textarea rows={3} maxLength={4000} value={draft.notes} onChange={e => field('notes', e.target.value)} /></label><p className="field-help">Dates are stored for reference. Lifecycle calculations and alerts come in a later milestone.</p></details>
+      {existing && <div className="delete-area">{confirmDelete ? <><p>Delete this product? Past and started routines will keep their records.</p><div className="delete-confirm"><button type="button" className="danger-button" disabled={busy} onClick={() => void onDelete()}>Delete product</button><button type="button" className="text-button" onClick={() => setConfirmDelete(false)}>Keep product</button></div></> : <button type="button" className="text-button danger" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Delete product</button>}</div>}
+    </div><div className="editor-footer"><button type="button" className="text-button" onClick={onClose} disabled={busy}><ArrowLeft size={16} /> Cancel</button><button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save product'}<Check size={17} /></button></div>
+  </form></dialog>;
+}

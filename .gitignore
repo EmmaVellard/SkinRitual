@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.sites-runtime/
+.openai/
+
+.env*
+.DS_Store
