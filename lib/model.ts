@@ -6,14 +6,16 @@ export type Product = {
   instruction: string; notes: string; openedDate: string; paoMonths: number | null;
   roles?: FunctionalRole[]; stepOverride?: RoutineStage | null; autoOrder?: boolean;
   scheduling?: Scheduling; seeded?: boolean; applicationArea?: string; pairWithId?: string;
+  almostEmpty?: boolean; rebuyUrl?: string;
   expirationDate: string; createdAt: string; updatedAt: string;
 };
-export type RoutineStep = { productId: string; name: string; brand: string; category: Product['category']; instruction: string; routineOrder: number; completedAt: string | null; skipped: boolean };
-export type RoutineLog = { id: string; date: string; timeOfDay: Period; steps: RoutineStep[]; decisions?: { productId: string; selected: boolean; reason: string }[]; completedAt: string | null; updatedAt: string };
+export type RoutineStep = { productId: string; name: string; brand: string; category: Product['category']; instruction: string; routineOrder: number; completedAt: string | null; skipped: boolean; replacedById?: string };
+export type RoutineUndo = { id: string; kind: 'skip' | 'swap'; label: string; before: RoutineStep[]; after: RoutineStep[] };
+export type RoutineLog = { undoActions?: RoutineUndo[]; id: string; date: string; timeOfDay: Period; steps: RoutineStep[]; decisions?: { productId: string; selected: boolean; reason: string }[]; completedAt: string | null; updatedAt: string };
 export function localDate(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
-export function currentPeriod(date = new Date()): Period { return date.getHours() < 15 ? 'morning' : 'evening'; }
+export function currentPeriod(date = new Date()): Period { return date.getHours() >= 5 && date.getHours() < 17 ? 'morning' : 'evening'; }
 // A started routine is a snapshot. Cabinet edits apply to the next routine.
 export function setCompletion(log: RoutineLog, productId: string, completed: boolean, now: string): RoutineLog {
   const steps = log.steps.map(s => s.productId === productId ? { ...s, completedAt: completed ? now : null, skipped: false } : s);
@@ -26,8 +28,8 @@ export const stages = { cleanse: 10, second_cleanse: 20, mask: 30, tone: 40, ser
 export type RoutineStage = keyof typeof stages;
 export const stageLabels: Record<RoutineStage, string> = { cleanse: 'First cleanse', second_cleanse: 'Cleanse', mask: 'Rinse-off mask', tone: 'Tone', serum: 'Serum / ampoule', treat: 'Treat', eye: 'Eye care', moisturize: 'Moisturize', protect: 'Protect' };
 export type Scheduling = { enabled: boolean; core: boolean; intensity: 'gentle' | 'normal' | 'active'; minSpacingDays: number; maxUsesPerWeek: number | null };
-export type RoutineSettings = { id: 'routine'; intensity: 'gentle' | 'normal' | 'active'; maxOptionalSteps: number; avoidPoreSameDay: boolean };
-export const defaultSettings: RoutineSettings = { id: 'routine', intensity: 'normal', maxOptionalSteps: 2, avoidPoreSameDay: true };
+export type RoutineSettings = { id: 'routine'; morningStart?: 'cleanser' | 'mist'; language?: 'en' | 'fr'; preferEveningPads?: boolean; intensity: 'gentle' | 'normal' | 'active'; maxOptionalSteps: number; avoidPoreSameDay: boolean };
+export const defaultSettings: RoutineSettings = { id: 'routine', intensity: 'normal', maxOptionalSteps: 2, avoidPoreSameDay: true, preferEveningPads: true, language: 'en' };
 export function rolesFor(p: Product): FunctionalRole[] {
   if (p.roles !== undefined) return p.roles;
   const byCategory: Partial<Record<Product['category'], FunctionalRole[]>> = {

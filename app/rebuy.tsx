@@ -1,0 +1,9 @@
+'use client';
+import { useLocale } from './language';
+import { type Product } from '@/lib/model';
+import { shoppingLink } from '@/lib/shopping';
+export default function Rebuy({products,onClear,onDetails,busy}:{products:Product[];onClear:(p:Product)=>void;onDetails:(p:Product)=>void;busy:boolean}) {
+ const {tr}=useLocale();
+ const list=products.filter(p=>p.almostEmpty);
+ return <><div className="page-heading"><div><p className="eyebrow">{tr("BEFORE YOU RUN OUT")}</p><h1>{tr("To rebuy.")}</h1><p className="muted">{tr("Products you marked almost empty. Nothing is ordered automatically.")}</p></div></div>{!list.length?<div className="empty"><h2>{tr("Nothing to replace yet.")}</h2><p>{tr("Mark a product Almost empty in your cabinet to add it here.")}</p></div>:<div className="rebuy-list">{list.map(p=><article className="advice-card" key={p.id}><p className="eyebrow">{p.brand}</p><h2>{p.name}</h2><p>{tr(p.category)}</p><div className="backup-actions">{shoppingLink(p)?<a className="primary" href={shoppingLink(p)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{tr("Open on YesStyle ↗")}</a>:<p className="field-help">{tr("No verified YesStyle listing. For medicines, use your usual pharmacy.")}</p>}<button className="text-button" onClick={()=>onDetails(p)}>{tr("Product details")}</button><button className="text-button" disabled={busy} onClick={()=>onClear(p)}>{tr("Remove from list")}</button></div></article>)}</div>}<p className="cabinet-help">{tr("Links were checked September 10, 2026. Check the size, formula, delivery country and availability before ordering. DR.G’s link is the tube version; the formula and packaging may differ. Removing a reminder does not change opening dates or mark a product used.")}</p></>;
+}

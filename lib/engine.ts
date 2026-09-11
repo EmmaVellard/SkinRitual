@@ -34,6 +34,7 @@ export function generateRoutine(products: Product[], period: Period, history: Ro
   const s = schedulingFor(p);
   let reason = '';
   if (p.status !== 'active') reason = `Product is ${p.status}.`;
+  else if (period==='morning' && settings.morningStart==='mist' && rolesFor(p).some(r=>['first_cleanse','second_cleanse','gentle_cleanse'].includes(r))) reason='Your morning preference starts without a cleanser.';
   else if (p.timeOfDay !== 'both' && p.timeOfDay !== period) reason = `Assigned to ${p.timeOfDay}.`;
   else if (!s.enabled) reason = 'Automatic suggestions are off; configure your own schedule.';
   else if (time - last(p) < s.minSpacingDays * DAY) reason = `Minimum spacing is ${s.minSpacingDays} days; last use is too recent.`;
@@ -55,7 +56,10 @@ export function generateRoutine(products: Product[], period: Period, history: Ro
   for (const item of batch) {
    selected.push(item);
    const elapsed = last(item);
-   reasons.set(item.id, elapsed === -Infinity ? 'Selected from products with no recorded use; stable cabinet order breaks ties.' : `Selected because it was used less recently: ${Math.floor((time - elapsed) / DAY)} days ago.`);
+   const role = rolesFor(item);
+   const purpose = role.includes('sunscreen') ? 'Your one sunscreen for this morning' : role.includes('moisturizer') ? 'The moisturizer step' : role.includes('pore_mask') ? 'A mask slot within your weekly limit' : role.includes('pore_exfoliating') ? 'An exfoliating-pad slot within your spacing limit' : role.includes('brightening') ? 'The rotating brightening step' : role.includes('eye_treatment') ? 'Your optional eye-care step' : role.includes('soothing') || role.includes('hydrating') ? 'The soothing / hydrating step' : 'A step that fits this routine';
+   const recent = elapsed === -Infinity ? 'No use recorded yet.' : `Last recorded use: ${Math.floor((time - elapsed) / DAY)} days ago.`;
+   reasons.set(item.id, `${purpose}. ${recent}${!schedulingFor(item).core ? ' Chosen within your optional-step budget.' : ''}`);
    if (batch.length > 1) reasons.set(item.id, 'Selected as part of the linked oil → foam double cleanse.');
   }
   return true;
@@ -66,7 +70,7 @@ export function generateRoutine(products: Product[], period: Period, history: Ro
   if (!foam) reject(oil, 'The linked second cleanser is unavailable; the double cleanse was not selected.');
   else select(oil, [oil, foam]);
  }
- for (const p of [...eligible.filter(p => schedulingFor(p).core).sort(rank), ...eligible.filter(p => !schedulingFor(p).core).sort(rank)]) {
+ for (const p of [...eligible.filter(p => schedulingFor(p).core).sort(rank), ...eligible.filter(p => !schedulingFor(p).core).sort((a,b)=> { const mistFirst=(p: Product)=>period==='morning' && settings.morningStart==='mist' && p.category==='Mist / toner' && rolesFor(p).includes('hydrating') ? 1 : 0; const padDue=(p: Product)=>period==='evening' && settings.preferEveningPads && p.category==='Pad' && time-last(p)>=2*DAY ? 1 : 0; return mistFirst(b)-mistFirst(a) || padDue(b)-padDue(a) || rank(a,b); })]) {
   if (selected.some(s => s.id === p.id) || decisions.has(p.id)) continue;
   select(p);
  }

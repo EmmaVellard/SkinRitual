@@ -14,9 +14,12 @@ describe('manual routine', () => {
  expect(undone.steps[1].completedAt).toBe('second');
  expect(log.steps[0].completedAt).toBeNull();
  });
- it('uses local calendar dates and changes automatic routine at 3pm', () => {
+ it('uses local calendar dates and changes automatic routine at 5am and 5pm', () => {
  expect(localDate(new Date(2026, 0, 2, 0, 1))).toBe('2026-01-02');
- expect(currentPeriod(new Date(2026, 0, 2, 14, 59))).toBe('morning');
- expect(currentPeriod(new Date(2026, 0, 2, 15))).toBe('evening');
+ expect(currentPeriod(new Date(2026, 0, 2, 16, 59))).toBe('morning');
+ expect(currentPeriod(new Date(2026, 0, 2, 17))).toBe('evening');
+ expect(currentPeriod(new Date(2026, 0, 2, 4, 59))).toBe('evening');
+ expect(currentPeriod(new Date(2026, 0, 2, 5))).toBe('morning');
+ expect(currentPeriod(new Date(2026, 0, 3, 0))).toBe('evening');
  });
 });

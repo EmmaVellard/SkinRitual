@@ -28,7 +28,7 @@ describe('persistent daily records', () => {
  await saveProduct({ ...product('b'), status: 'paused' });
  await completeStep('2026-09-10', 'morning', 'b', true);
  await completeStep('2026-09-10', 'evening', 'a', true);
- await completeStep('2026-09-11', 'morning', 'a', true);
+ await completeStep('2026-09-08', 'morning', 'a', true);
  const { routines } = await readData();
  expect(routines).toHaveLength(3);
  expect(routines.find(r => r.id === '2026-09-10:morning')?.steps).toHaveLength(2);
@@ -39,7 +39,7 @@ describe('persistent daily records', () => {
 describe('first launch', () => {
  it('seeds once even when initialized concurrently, preserves edits and deletion', async () => {
   await Promise.all([initializeCabinet(), initializeCabinet()]);
-  expect((await readData()).products).toHaveLength(15);
+  expect((await readData()).products).toHaveLength(17);
   await saveProduct({ ...(await readData()).products[0], name: 'My edited name' });
   await initializeCabinet();
   expect((await readData()).products[0].name).toBe('My edited name');
@@ -59,4 +59,25 @@ describe('first launch', () => {
   await initializeCabinet();
   expect((await readData()).products).toHaveLength(0);
  });
+});
+
+it('corrects existing niacinamide once, preserves custom fields and later edits', async () => {
+ const original = { ...product('mine'), brand:'SKIN1004', name:'Niacinamide 10 Boosting Shot Ampoule', category:'Serum / ampoule' as const, notes:'Keep my notes', status:'paused' as const, scheduling:{enabled:false,core:false,intensity:'gentle' as const,minSpacingDays:0,maxUsesPerWeek:null} };
+ await saveProduct(original); await initializeCabinet();
+ let p=(await readData()).products[0];
+ expect(p.timeOfDay).toBe('evening'); expect(p.notes).toBe('Keep my notes'); expect(p.status).toBe('paused'); expect(p.scheduling?.enabled).toBe(false); expect(p.scheduling?.intensity).toBe('active');
+ await saveProduct({...p,timeOfDay:'both'}); await initializeCabinet();
+ p=(await readData()).products[0]; expect(p.timeOfDay).toBe('both'); expect((await readData()).products).toHaveLength(4);
+});
+it('keeps a custom niacinamide frequency during the evening correction', async () => {
+ await saveProduct({...product('custom'),brand:'SKIN1004',name:'Niacinamide 10 Boosting Shot Ampoule',scheduling:{enabled:true,core:false,intensity:'normal',minSpacingDays:4,maxUsesPerWeek:1}});
+ await initializeCabinet();const p=(await readData()).products[0];
+ expect(p.timeOfDay).toBe('evening');expect(p.scheduling?.minSpacingDays).toBe(4);expect(p.scheduling?.intensity).toBe('normal');
+});
+
+it('adds the owned cloudy mist once, preserves matching edits and respects later deletion',async()=>{
+ await initializeCabinet();let data=await readData();const mist=data.products.find(p=>p.id==='seed-18')!;
+ await saveProduct({...mist,notes:'Personal mist note',timeOfDay:'morning'});await initializeCabinet();
+ data=await readData();expect(data.products.filter(p=>p.id==='seed-18')).toHaveLength(1);expect(data.products.find(p=>p.id==='seed-18')?.notes).toBe('Personal mist note');
+ await deleteProduct('seed-18');await initializeCabinet();expect((await readData()).products.some(p=>p.id==='seed-18')).toBe(false);
 });

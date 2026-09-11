@@ -7,8 +7,8 @@ const seeds = () => seedProducts('2026-09-01T00:00:00Z');
 const log = (id: string, daysAgo: number, date = '2026-09-09'): RoutineLog => ({ id: `log-${id}-${daysAgo}`, date, timeOfDay: 'evening', completedAt: null, updatedAt: '', steps: [{ productId: id, name: id, brand: '', category: 'Other', instruction: '', routineOrder: 0, completedAt: new Date(now.getTime() - daysAgo * 86400000).toISOString(), skipped: false }] });
 const ids = (products: Product[], history: RoutineLog[] = [], period: 'morning' | 'evening' = 'evening') => generateRoutine(products, period, history, now).steps.map(s => s.productId);
 describe('balanced routines', () => {
- it('seeds all 15 with unknown lifecycle fields and treatment schedules off', () => {
-  const products = seeds(); expect(products).toHaveLength(15);
+ it('seeds all 17 with unknown lifecycle fields and treatment schedules off', () => {
+  const products = seeds(); expect(products).toHaveLength(17);
   expect(products.every(p => p.seeded && !p.openedDate && !p.expirationDate && p.paoMonths === null)).toBe(true);
   expect(products.filter(p => p.category === 'Treatment').every(p => !p.scheduling?.enabled)).toBe(true);
   expect(products.find(p => p.id === 'seed-15')?.applicationArea).toBe('Chin');
@@ -18,11 +18,11 @@ describe('balanced routines', () => {
   expect(plan.steps.filter(s => products.find(p => p.id === s.productId)?.roles?.includes('sunscreen'))).toHaveLength(1);
   expect(plan.steps.filter(s => !products.find(p => p.id === s.productId)?.scheduling?.core)).toHaveLength(1);
   expect(plan.steps.at(-1)?.productId).toBe('seed-02');
-  expect(plan.decisions).toHaveLength(15);
-  expect(plan.decisions.find(d => d.productId === 'seed-03')?.reason).toContain('Another sunscreen');
+  expect(plan.decisions).toHaveLength(17);
+  expect(plan.decisions.find(d => d.productId === 'seed-10')?.reason).toContain('Another sunscreen');
  });
  it('rotates sunscreens by actual completed history', () => {
-  expect(ids(seeds(), [log('seed-02', 1)], 'morning')).toContain('seed-03');
+  expect(ids(seeds(), [log('seed-02', 1)], 'morning')).toContain('seed-10');
   expect(ids(seeds(), [log('seed-02', 1)], 'morning')).not.toContain('seed-02');
  });
  it('pairs oil and foam adjacently, excluding standalone cleanser', () => {
@@ -61,8 +61,8 @@ describe('balanced routines', () => {
  });
  it('allows distinct serum functions but not multiple brightening alternatives', () => {
   const products = seeds().filter(p => ['seed-01', 'seed-05', 'seed-07'].includes(p.id));
-  expect(ids(products)).toEqual(['seed-01', 'seed-05']);
-  expect(groupsFor(seeds()[8])).toEqual(['moisturizer']);
+  expect(ids(products)).toEqual(['seed-07', 'seed-01']);
+  expect(groupsFor(seeds().find(p=>p.id==='seed-09')!)).toEqual(['moisturizer']);
  });
  it('is deterministic regardless of input array ordering and does not mutate inputs', () => {
   const products = seeds(); const before = structuredClone(products);
@@ -76,4 +76,13 @@ describe('balanced routines', () => {
  it('never includes treatments without an explicit scheduling opt-in', () => {
   for (const period of ['morning', 'evening'] as const) expect(generateRoutine(seeds(), period, [], now).steps.some(s => rolesFor(seeds().find(p => p.id === s.productId)!).some(r => r === 'retinoid_treatment' || r === 'acne_treatment'))).toBe(false);
  });
+});
+
+it('starts with hydrating mist only when that morning preference is selected',()=>{
+ const products=seeds();const settings={...defaultSettings,morningStart:'mist' as const};
+ const plan=generateRoutine(products,'morning',[],now,settings);
+ expect(plan.steps[0].productId).toBe('seed-18');
+ expect(plan.steps.map(s=>s.productId)).toEqual(['seed-18','seed-09','seed-02']);
+ expect(generateRoutine(products,'evening',[],now,settings).steps.slice(0,2).map(s=>s.productId)).toEqual(['seed-12','seed-13']);
+ expect(generateRoutine(products,'morning',[],now,{...settings,maxOptionalSteps:0}).steps.map(s=>s.productId)).not.toContain('seed-18');
 });
