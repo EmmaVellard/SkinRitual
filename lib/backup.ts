@@ -24,7 +24,8 @@ export function validateBackup(value: unknown): Backup {
   insist(timestamp(p.createdAt) && timestamp(p.updatedAt), 'invalid product timestamp.');
   optional(p, 'roles', v => Array.isArray(v) && v.length <= functionalRoles.length && new Set(v).size === v.length && v.every(r => choices(r, functionalRoles)));
   optional(p, 'stepOverride', v => v === null || choices(v, Object.keys(stages)));
-  for (const field of ['autoOrder', 'seeded', 'almostEmpty']) optional(p, field, v => typeof v === 'boolean');
+  for (const field of ['autoOrder', 'seeded', 'almostEmpty', 'favorite']) optional(p, field, v => typeof v === 'boolean');
+  optional(p, 'rebuyDismissedDate', v => v === '' || validDate(v));
   optional(p, 'rebuyUrl', v => typeof v === 'string' && (v === '' || /^https:\/\/(www\.)?yesstyle\.com\//.test(v)));
   optional(p, 'applicationArea', v => text(v)); optional(p, 'pairWithId', v => id(v) && v !== p.id);
   if (p.scheduling !== undefined) { object(p.scheduling); const s = p.scheduling; insist(typeof s.enabled === 'boolean' && typeof s.core === 'boolean' && choices(s.intensity, ['gentle', 'normal', 'active']) && integer(s.minSpacingDays, 365) && (s.maxUsesPerWeek === null || integer(s.maxUsesPerWeek, 14) && s.maxUsesPerWeek !== 0), 'invalid schedule.'); }

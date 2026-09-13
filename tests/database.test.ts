@@ -5,6 +5,16 @@ import type { Product } from '../lib/model';
 const product = (id: string): Product => ({ id, name: `Product ${id}`, brand: 'Brand', category: id === 'a' ? 'Moisturizer' : 'Sunscreen', timeOfDay: 'both', routineOrder: 10, status: 'active', instruction: 'One drop', notes: '', openedDate: '', paoMonths: null, expirationDate: '', createdAt: '', updatedAt: '' });
 beforeEach(async () => { const db = await database(); await db.clear('products'); await db.clear('routines'); await db.clear('meta'); await db.clear('settings'); });
 describe('persistent daily records', () => {
+ it('moves existing pads to evening once without changing notes, frequency or later edits',async()=>{
+  await initializeCabinet();const db=await database();
+  const pad=(await readData()).products.find(p=>p.id==='seed-07')!;
+  await saveProduct({...pad,timeOfDay:'both',notes:'Keep my notes'});
+  await db.delete('meta','evening-pads-v1');await initializeCabinet();
+  const migrated=(await readData()).products.find(p=>p.id===pad.id)!;
+  expect(migrated.timeOfDay).toBe('evening');expect(migrated.notes).toBe('Keep my notes');expect(migrated.scheduling).toEqual(pad.scheduling);
+  await saveProduct({...migrated,timeOfDay:'both'});await initializeCabinet();
+  expect((await readData()).products.find(p=>p.id===pad.id)!.timeOfDay).toBe('both');
+ });
  it('persists CRUD and completion through fresh reads', async () => {
  await saveProduct(product('a'));
  await saveProduct({ ...product('a'), name: 'Edited name' });

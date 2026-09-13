@@ -2,6 +2,7 @@ import { type Product, type Period, type RoutineLog, type RoutineSettings, type 
 export type Decision = { productId: string; selected: boolean; reason: string };
 export type Plan = { steps: RoutineStep[]; decisions: Decision[] };
 const DAY = 86400000;
+export const optionalLimit = (period: Period, settings: RoutineSettings) => period === 'morning' ? Math.min(settings.morningStart === 'mist' ? 2 : 1, settings.maxOptionalSteps) : settings.maxOptionalSteps;
 // Groups describe primary uses. A brightening moisturizer still occupies the moisturizer slot.
 export function groupsFor(p: Product): string[] {
  const stage = stageFor({ ...p, stepOverride: null });
@@ -22,13 +23,13 @@ export function generateRoutine(products: Product[], period: Period, history: Ro
  const time = now.getTime();
  const uses = history.flatMap(log => log.steps.filter(s => !s.skipped && s.completedAt && Date.parse(s.completedAt) <= time).map(s => ({ id: s.productId, at: Date.parse(s.completedAt!), date: log.date })));
  const last = (p: Product) => Math.max(-Infinity, ...uses.filter(u => u.id === p.id).map(u => u.at));
- const rank = (a: Product, b: Product) => { const aLast = last(a), bLast = last(b); return (aLast === bLast ? 0 : aLast < bLast ? -1 : 1) || a.id.localeCompare(b.id); };
+ const rank = (a: Product, b: Product) => { const aLast = last(a), bLast = last(b); return Number(!!b.favorite)-Number(!!a.favorite) || (aLast === bLast ? 0 : aLast < bLast ? -1 : 1) || a.id.localeCompare(b.id); };
  const selected: Product[] = [];
  const decisions = new Map<string, Decision>();
  const reasons = new Map<string, string>();
  const reject = (p: Product, reason: string) => { decisions.set(p.id, { productId: p.id, selected: false, reason }); };
  const intensityCap = { gentle: 0, normal: 1, active: 2 }[settings.intensity];
- const optionalCap = period === 'morning' ? Math.min(1, settings.maxOptionalSteps) : settings.maxOptionalSteps;
+ const optionalCap = optionalLimit(period, settings);
  const pore = (p: Product) => rolesFor(p).filter(r => r === 'pore_mask' || r === 'pore_exfoliating');
  const eligible = products.filter(p => {
   const s = schedulingFor(p);
@@ -65,12 +66,13 @@ export function generateRoutine(products: Product[], period: Period, history: Ro
   return true;
  }
  // Resolve complete double-cleansing pairs before standalone cleanser alternatives.
+ for (const p of eligible.filter(p=>p.favorite && schedulingFor(p).core && groupsFor(p).includes('water-based cleanser') && !products.some(oil=>oil.pairWithId===p.id)).sort(rank)) select(p);
  if (period === 'evening') for (const oil of eligible.filter(p => rolesFor(p).includes('first_cleanse') && p.pairWithId).sort(rank)) {
   const foam = eligible.find(p => p.id === oil.pairWithId && rolesFor(p).some(r => r === 'second_cleanse' || r === 'gentle_cleanse'));
   if (!foam) reject(oil, 'The linked second cleanser is unavailable; the double cleanse was not selected.');
   else select(oil, [oil, foam]);
  }
- for (const p of [...eligible.filter(p => schedulingFor(p).core).sort(rank), ...eligible.filter(p => !schedulingFor(p).core).sort((a,b)=> { const mistFirst=(p: Product)=>period==='morning' && settings.morningStart==='mist' && p.category==='Mist / toner' && rolesFor(p).includes('hydrating') ? 1 : 0; const padDue=(p: Product)=>period==='evening' && settings.preferEveningPads && p.category==='Pad' && time-last(p)>=2*DAY ? 1 : 0; return mistFirst(b)-mistFirst(a) || padDue(b)-padDue(a) || rank(a,b); })]) {
+ for (const p of [...eligible.filter(p => schedulingFor(p).core).sort(rank), ...eligible.filter(p => !schedulingFor(p).core).sort((a,b)=> { const mistFirst=(p: Product)=>period==='morning' && settings.morningStart==='mist' && p.category==='Mist / toner' && rolesFor(p).includes('hydrating') ? 1 : 0; const padDue=(p: Product)=>period==='evening' && settings.preferEveningPads && p.category==='Pad' && time-last(p)>=2*DAY ? 1 : 0; return mistFirst(b)-mistFirst(a) || Number(!!b.favorite)-Number(!!a.favorite) || padDue(b)-padDue(a) || rank(a,b); })]) {
   if (selected.some(s => s.id === p.id) || decisions.has(p.id)) continue;
   select(p);
  }

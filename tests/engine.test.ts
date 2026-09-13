@@ -82,7 +82,8 @@ it('starts with hydrating mist only when that morning preference is selected',()
  const products=seeds();const settings={...defaultSettings,morningStart:'mist' as const};
  const plan=generateRoutine(products,'morning',[],now,settings);
  expect(plan.steps[0].productId).toBe('seed-18');
- expect(plan.steps.map(s=>s.productId)).toEqual(['seed-18','seed-09','seed-02']);
+ expect(plan.steps.map(s=>s.productId)).toEqual(['seed-18','seed-01','seed-09','seed-02']);
+ expect(generateRoutine(products,'morning',[],now,{...settings,maxOptionalSteps:1}).steps.map(s=>s.productId)).not.toContain('seed-01');
  expect(generateRoutine(products,'evening',[],now,settings).steps.slice(0,2).map(s=>s.productId)).toEqual(['seed-12','seed-13']);
  expect(generateRoutine(products,'morning',[],now,{...settings,maxOptionalSteps:0}).steps.map(s=>s.productId)).not.toContain('seed-18');
 });

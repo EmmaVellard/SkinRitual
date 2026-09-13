@@ -17,9 +17,15 @@ Open **Today** to see your routine. Morning is selected from 5am to 5pm; evening
 - Tap the circle beside a product when you use it. Tap again to undo the checkmark.
 - **Skip** leaves a step out without counting it as used.
 - **Swap** offers alternatives that fit your routine. Round Lab and the SKIN1004 oil-and-foam pair can replace each other, including as an explicit morning choice, and your moisturizers can replace one another.
-- **Undo skip**, under the skipped product, or **Undo swap** restores the earlier choice. Undo is available while the affected steps are unchanged; it preserves other products you have already checked off.
+- **Undo skip** and **Undo swap** appear under the affected product and restore the earlier choice. Undo is available while the affected steps are unchanged; it preserves other products you have already checked off.
 
 Everything saves automatically. A started routine keeps its steps, so editing your cabinet will not rearrange your checklist halfway through.
+
+Replaced products disappear from the checklist and step count; **Undo swap** stays below the replacement. Before marking any product used, **Recalculate this routine** applies your current cabinet and preferences and resets skips and swaps. Once a product is marked used, the routine is protected from recalculation.
+
+Open **Seven days at a glance** to compare mornings and evenings and spot pads, masks and serums. Select a session to see its full routine. Future sessions are projections, never recorded usage.
+
+In Products, choose **Prefer this product** to favor it when eligible. One favorite is kept per function; spacing, availability and intensity still apply. Choose **Rotate instead** to return to recent-use rotation.
 
 ## Your products are already here
 
@@ -51,7 +57,7 @@ The app chooses a small routine from your available products, using your actual 
 
 It chooses one sunscreen and one moisturizer, keeps the evening oil-and-foam pair together, and avoids stacking multiple pads. Less recently used optional products rotate. Eligible evening pads receive priority, while masks and the niacinamide ampoule still get space across the week.
 
-The starting limit is **one optional step in the morning and two in the evening**. Normal intensity allows at most one intensive product; gentle mode excludes intensive optional products. Pads and clay masks use separate days by default. You can change these preferences in **Settings**.
+The starting limit is **one optional step in the morning and two in the evening**. With **Mist first**, mornings allow up to two: mist followed by an ampoule, still respecting your optional-step limit. Normal intensity allows at most one intensive product; gentle mode excludes intensive optional products. Pads start in the evening, with pore pads and clay masks on separate days. These are editable scheduling preferences.
 
 Niacinamide starts in the evening, up to twice in seven days with two days between uses. The brightening pad starts with a three-use limit and a day between uses. These are editable app scheduling defaults, not treatment instructions or a guarantee of skin tolerance.
 
@@ -86,6 +92,8 @@ Advice works locally using the bundled information. External sources need an int
 ## Remember what to rebuy
 
 Mark a product **Almost empty** directly on Today, in Products or its details page. It appears in **Rebuy**, with a direct YesStyle link where a listing was verified. Remove the reminder when you no longer need it.
+
+Products also appear automatically when their recorded PAO or printed expiration date arrives, whichever comes first. No dates are guessed. Finished products do not get automatic reminders. Removing a date reminder acknowledges that date without changing the product's dates or condition; recording a new date can create a new reminder. Reminders are calculated when you open the app, not through background notifications.
 
 Check the size, version, country of delivery and availability before ordering. The DR.G link is for a tube version. Medicines without a verified YesStyle listing point you back to your usual pharmacy. Nothing is ordered automatically, and clearing a reminder does not change opening dates.
 

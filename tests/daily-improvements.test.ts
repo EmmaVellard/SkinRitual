@@ -1,0 +1,44 @@
+import 'fake-indexeddb/auto';
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {seedProducts} from '../lib/seed';
+import {rebuyDue,clearRebuyReminder} from '../lib/dates';
+import {generateRoutine} from '../lib/engine';
+import {database,initializeCabinet,readData,saveSettings,changeRoutine,recalculateRoutine,setFavorite} from '../lib/database';
+import {defaultSettings} from '../lib/model';
+import {makeBackup,validateBackup} from '../lib/backup';
+const now=new Date('2026-09-11T12:00:00');
+beforeEach(async()=>{vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now);const db=await database();for(const store of ['products','routines','settings','meta'] as const)await db.clear(store);await initializeCabinet();});
+afterEach(()=>vi.useRealTimers());
+it('adds due PAO or printed dates, respects dismissal and notices a new date',()=>{
+ const p={...seedProducts()[0],openedDate:'2025-09-11',paoMonths:12,expirationDate:'2027-01-01'};
+ expect(rebuyDue(p,'2026-09-10')).toBe(false);expect(rebuyDue(p,'2026-09-11')).toBe(true);
+ const cleared=clearRebuyReminder(p,'2026-09-11');expect(rebuyDue(cleared,'2026-09-12')).toBe(false);
+ expect(rebuyDue({...cleared,openedDate:'',expirationDate:'2026-09-12'},'2026-09-12')).toBe(true);
+ expect(rebuyDue({...p,status:'finished'},'2026-09-11')).toBe(false);
+ expect(rebuyDue({...p,openedDate:'',expirationDate:''},'2026-09-11')).toBe(false);
+ expect(rebuyDue(clearRebuyReminder({...p,almostEmpty:true},'2026-09-10'),'2026-09-11')).toBe(true);
+});
+it('persists one favorite per function and never selects a paused favorite',async()=>{
+ await setFavorite('seed-16');await setFavorite('seed-17');let data=await readData();
+ expect(data.products.find(p=>p.id==='seed-16')!.favorite).toBe(false);
+ expect(generateRoutine(data.products,'morning',[],now).steps.map(s=>s.productId)).toContain('seed-17');
+ const paused=data.products.map(p=>p.id==='seed-17'?{...p,status:'paused' as const}:p);
+ expect(generateRoutine(paused,'morning',[],now).steps.map(s=>s.productId)).not.toContain('seed-17');
+ await setFavorite('seed-11');data=await readData();
+ expect(generateRoutine(data.products,'evening',[],now).steps.map(s=>s.productId)).toContain('seed-11');
+ expect(generateRoutine(data.products,'evening',[],now).steps.map(s=>s.productId)).not.toContain('seed-12');
+ expect(validateBackup(makeBackup(data)).products.find(p=>p.id==='seed-17')!.favorite).toBe(true);
+});
+it('recalculates unused snapshots, resets swaps, and refuses used or stale records',async()=>{
+ await changeRoutine('2026-09-11','morning','seed-11','swap','seed-12+seed-13');
+ const before=(await readData()).routines[0];
+ await saveSettings({...defaultSettings,morningStart:'mist'});
+ await recalculateRoutine(before.date,before.timeOfDay,before.updatedAt);
+ const log=(await readData()).routines[0];
+ expect(log.steps.map(s=>s.productId)).toEqual(['seed-18','seed-01','seed-09','seed-02']);expect(log.undoActions).toEqual([]);
+ await expect(recalculateRoutine(log.date,log.timeOfDay,'stale')).rejects.toThrow('another tab');
+ await changeRoutine(log.date,log.timeOfDay,'seed-01','used');
+ const used=(await readData()).routines[0];
+ await expect(recalculateRoutine(used.date,used.timeOfDay,used.updatedAt)).rejects.toThrow('cannot be recalculated');
+ expect((await readData()).routines[0]).toEqual(used);
+});

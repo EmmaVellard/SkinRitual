@@ -19,6 +19,13 @@ export function addMonths(date: string, months: number): string {
  target.setDate(Math.min(day, end)); return localDate(target);
 }
 export function dateLabel(date: string, locale = 'en-US'): string { return new Date(`${date}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }); }
+export function rebuyDue(product: Product, today = localDate()) {
+ const life = lifecycle(product, today);
+ return product.status !== 'finished' && !!life && life.days <= 0 && product.rebuyDismissedDate !== life.date;
+}
+export function clearRebuyReminder(product: Product, today = localDate()): Product {
+ return {...product,almostEmpty:false,rebuyDismissedDate:rebuyDue(product,today)?lifecycle(product,today)!.date:product.rebuyDismissedDate,updatedAt:new Date().toISOString()};
+}
 export function lifecycle(product: Product, today = localDate(), locale = 'en-US') {
  const tr=translator(locale==='fr-FR'?'fr':'en');
  const paoDate = validDate(product.openedDate) && product.paoMonths && Number.isInteger(product.paoMonths) && product.paoMonths > 0 ? addMonths(product.openedDate, product.paoMonths) : null;

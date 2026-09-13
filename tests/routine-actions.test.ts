@@ -10,6 +10,24 @@ const products = () => seedProducts('2026-09-01T00:00:00Z');
 const record = (period: 'morning' | 'evening' = 'morning'): RoutineLog => ({ id: `2026-09-10:${period}`, date: '2026-09-10', timeOfDay: period, ...generateRoutine(products(), period, [], now), updatedAt: now.toISOString(), completedAt: null });
 beforeEach(async () => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now); const db = await database(); for (const store of ['products', 'routines', 'settings', 'meta'] as const) await db.clear(store); await initializeCabinet(); });
 afterEach(() => vi.useRealTimers());
+it.each(['morning','evening'] as const)('allows Round Lab and the whole linked pair to swap both ways in %s',async period=>{
+ if(period==='evening') await changeRoutine('2026-09-10',period,'seed-13','swap','seed-11');
+ const initial=await readData();const initialLog=initial.routines[0] ?? record(period);
+ expect(swapChoices(initialLog,'seed-11',initial.products,initial.routines,now,defaultSettings).map(c=>c.id)).toEqual(['seed-12+seed-13']);
+ const pausedOil=initial.products.map(p=>p.id==='seed-12'?{...p,status:'paused' as const}:p);
+ expect(swapChoices(initialLog,'seed-11',pausedOil,initial.routines,now,defaultSettings)).toHaveLength(0);
+ await changeRoutine('2026-09-10',period,'seed-11','swap','seed-12+seed-13');
+ let data=await readData(); let log=data.routines[0];
+ expect(log.steps.filter(s=>!s.skipped).slice(0,2).map(s=>s.productId)).toEqual(['seed-12','seed-13']);
+ // A manual selection remains available even if its automatic time differs.
+ const otherPeriod=period==='morning'?'evening':'morning';
+ const cabinet=data.products.map(p=>p.id==='seed-11'?{...p,timeOfDay:otherPeriod as 'morning'|'evening'}:p);
+ expect(swapChoices(log,'seed-12',cabinet,data.routines,now,defaultSettings).find(c=>c.id==='seed-11')?.manualTiming).toBe(true);
+ await changeRoutine('2026-09-10',period,'seed-12','swap','seed-11');
+ data=await readData();log=data.routines[0];
+ expect(log.steps.filter(s=>!s.skipped).map(s=>s.productId)).toContain('seed-11');
+ expect(log.steps.filter(s=>!s.skipped).some(s=>['seed-12','seed-13'].includes(s.productId))).toBe(false);
+});
 describe('skip and swap', () => {
  it('offers sunscreen alternatives and preserves already used steps when swapping', async () => {
   expect(swapCandidates(record(), 'seed-02', products(), [], now, defaultSettings).map(p => p.id)).toEqual(expect.arrayContaining(['seed-10']));

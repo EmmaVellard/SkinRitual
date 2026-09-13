@@ -3,7 +3,7 @@ import { type Product, type RoutineLog, type Period, localDate, defaultSettings,
 import { seedProducts } from './seed';
 import { updateCabinet } from './cabinet-update';
 import { guideFor } from './product-guidance';
-import { generateRoutine } from './engine';
+import { generateRoutine, groupsFor } from './engine';
 import { routineTime, validDate } from './dates';
 import { finishLog, snapshot, swapChoices, undoRoutineAction } from './routine-actions';
 import { type Backup, type AppData, validateBackup, makeBackup } from './backup';
@@ -62,9 +62,37 @@ export async function initializeCabinet() {
     }
     await tx.objectStore('meta').put({id:'cloudy-mist-v1',initializedAt:new Date().toISOString()});
   }
+  // Requested cabinet preference, not a manufacturer restriction. Editable afterward.
+  if (!await tx.objectStore('meta').get('evening-pads-v1')) {
+    for (const p of await tx.objectStore('products').getAll()) {
+      if (p.category === 'Pad') await tx.objectStore('products').put({...p,timeOfDay:'evening',updatedAt:new Date().toISOString()});
+    }
+    await tx.objectStore('meta').put({id:'evening-pads-v1',initializedAt:new Date().toISOString()});
+  }
   await tx.done;
 }
 export async function saveSettings(settings: RoutineSettings) { await (await database()).put('settings', settings); }
+export async function setFavorite(id: string) {
+ const db=await database();const tx=db.transaction('products','readwrite');
+ const products=await tx.store.getAll();const target=products.find(p=>p.id===id);
+ if(!target) throw new Error('Product no longer exists.');
+ const favorite=!target.favorite;const groups=groupsFor(target);
+ for(const p of products) if(p.id===id || favorite && p.favorite && groupsFor(p).some(g=>groups.includes(g))) {
+  await tx.store.put({...p,favorite:p.id===id?favorite:false,updatedAt:new Date().toISOString()});
+ }
+ await tx.done;
+}
+export async function recalculateRoutine(date: string, period: Period, expectedUpdatedAt: string) {
+ const now=new Date();if(!validDate(date) || date>localDate(now)) throw new Error('Choose today or a past date to record usage.');
+ const db=await database();const tx=db.transaction(['products','routines','settings'],'readwrite');
+ const id=`${date}:${period}`;const log=await tx.objectStore('routines').get(id);
+ if(!log || log.updatedAt!==expectedUpdatedAt) throw new Error('This record changed in another tab. Close and reopen the editor.');
+ if(log.steps.some(s=>s.completedAt)) throw new Error('A used routine cannot be recalculated.');
+ const products=await tx.objectStore('products').getAll();const history=(await tx.objectStore('routines').getAll()).filter(r=>r.id!==id);
+ const settings=await tx.objectStore('settings').get('routine') ?? defaultSettings;
+ await tx.objectStore('routines').put({...log,...generateRoutine(products,period,history,routineTime(date,period,now),settings),undoActions:[],completedAt:null,updatedAt:now.toISOString()});
+ await tx.done;
+}
 export async function readData() {
   const db = await database();
   const tx = db.transaction(['products', 'routines', 'settings', 'meta']);
@@ -133,7 +161,7 @@ export async function restoreBackup(input: Backup) {
  await tx.objectStore('settings').put(backup.settings);
  await tx.objectStore('meta').put({ id: 'initialized', initializedAt: new Date().toISOString() });
  // Restoring is an explicit replacement; do not modify the restored preferences on reload.
- for (const id of ['evening-niacinamide-v1','cabinet-september-v3','cloudy-mist-v1']) await tx.objectStore('meta').put({id,initializedAt:new Date().toISOString()});
+ for (const id of ['evening-niacinamide-v1','cabinet-september-v3','cloudy-mist-v1','evening-pads-v1']) await tx.objectStore('meta').put({id,initializedAt:new Date().toISOString()});
  await tx.done;
 }
 export async function undoRestore() {

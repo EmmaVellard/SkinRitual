@@ -7,7 +7,7 @@ export function seedProducts(now = new Date().toISOString()): Product[] {
   ['SKIN1004', 'Madagascar Centella Probio-Cica Bakuchiol Eye Cream', 'Eye cream', ['eye_treatment'], 'evening'],
   ['SKIN1004', 'Madagascar Centella Niacinamide 10 Boosting Shot Ampoule', 'Serum / ampoule', ['brightening'], 'evening', { intensity: 'active', maxUsesPerWeek: 2, minSpacingDays: 2 }],
   ['SKIN1004', 'Madagascar Centella Poremizing Quick Clay Stick Mask', 'Mask', ['pore_mask'], 'evening', { maxUsesPerWeek: 1, minSpacingDays: 6, intensity: 'active' }],
-  ['SKIN1004', 'Madagascar Centella Tone Brightening Dark Spot Ampoule Pad', 'Pad', ['brightening'], 'both', {intensity:'active',maxUsesPerWeek:3,minSpacingDays:1}],
+  ['SKIN1004', 'Madagascar Centella Tone Brightening Dark Spot Ampoule Pad', 'Pad', ['brightening'], 'evening', {intensity:'active',maxUsesPerWeek:3,minSpacingDays:1}],
   ['Medicube', 'Zero Pore Pad', 'Pad', ['pore_exfoliating'], 'evening', { maxUsesPerWeek: 2, minSpacingDays: 3, intensity: 'active' }],
   ['Medicube', 'Deep Vita C Capsule Cream', 'Moisturizer', ['moisturizer', 'brightening'], 'both'],
   ['Beauty of Joseon', 'Relief Sun: Rice + Probiotics', 'Sunscreen', ['sunscreen'], 'morning'],

@@ -6,7 +6,7 @@ export type Product = {
   instruction: string; notes: string; openedDate: string; paoMonths: number | null;
   roles?: FunctionalRole[]; stepOverride?: RoutineStage | null; autoOrder?: boolean;
   scheduling?: Scheduling; seeded?: boolean; applicationArea?: string; pairWithId?: string;
-  almostEmpty?: boolean; rebuyUrl?: string;
+  almostEmpty?: boolean; rebuyUrl?: string; favorite?: boolean; rebuyDismissedDate?: string;
   expirationDate: string; createdAt: string; updatedAt: string;
 };
 export type RoutineStep = { productId: string; name: string; brand: string; category: Product['category']; instruction: string; routineOrder: number; completedAt: string | null; skipped: boolean; replacedById?: string };
