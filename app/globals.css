@@ -35,3 +35,4 @@
 .week-session>span{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:.75rem;color:var(--muted);margin-top:5px}.week-saved{margin-left:auto}.week-caption{font-size:.8rem;line-height:1.5;color:var(--muted);margin:16px 0 0}
 .favorite-button[aria-pressed=true]{font-weight:600}.recalculate{margin-top:14px}.recalculate p{margin-top:4px}
 @media(max-width:760px){.week-sessions-heading,.week-day{grid-template-columns:32px minmax(0,1fr) minmax(0,1fr);gap:7px}.week-session{padding:10px}.week-saved{margin-left:0}.week-overview-heading{gap:8px}.week-overview-heading h2{font-size:1.25rem}}
+.new-bottle{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}.new-bottle h3{margin-bottom:8px}.new-bottle>p{font-size:.875rem}.new-bottle form>p{margin:12px 0 18px}.new-bottle [role=status]{color:var(--accent)}

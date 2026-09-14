@@ -91,6 +91,8 @@ Advice works locally using the bundled information. External sources need an int
 
 ## Remember what to rebuy
 
+When you open a replacement, open its product details and choose **New bottle**. Select its opening date, verify the PAO and optionally enter the new printed expiration date. Saving replaces the old bottle’s dates, clears **Almost empty** and its old purchase reminder, and keeps all usage history, favorites and scheduling rules. Finished products become active again; paused products stay paused. The old printed expiration is not copied to the new bottle. A new bottle already at its recorded date can still appear in Rebuy.
+
 Mark a product **Almost empty** directly on Today, in Products or its details page. It appears in **Rebuy**, with a direct YesStyle link where a listing was verified. Remove the reminder when you no longer need it.
 
 Products also appear automatically when their recorded PAO or printed expiration date arrives, whichever comes first. No dates are guessed. Finished products do not get automatic reminders. Removing a date reminder acknowledges that date without changing the product's dates or condition; recording a new date can create a new reminder. Reminders are calculated when you open the app, not through background notifications.

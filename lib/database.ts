@@ -102,6 +102,15 @@ export async function readData() {
   await tx.done; return { products, routines, settings, canUndoRestore };
 }
 export async function saveProduct(product: Product) { await (await database()).put('products', product); }
+export async function openNewBottle(id: string, expectedUpdatedAt: string, openedDate: string, paoMonths: number | null, expirationDate: string) {
+ if(!validDate(openedDate) || openedDate>localDate()) throw new Error('Choose today or a past opening date.');
+ if(paoMonths!==null && (!Number.isInteger(paoMonths) || paoMonths<1 || paoMonths>120)) throw new Error('PAO must be between 1 and 120 months.');
+ if(expirationDate!=='' && !validDate(expirationDate)) throw new Error('Choose a valid printed expiration date.');
+ const db=await database();const tx=db.transaction('products','readwrite');const product=await tx.store.get(id);
+ if(!product || product.updatedAt!==expectedUpdatedAt) throw new Error('This product changed. Close and reopen its details before trying again.');
+ await tx.store.put({...product,openedDate,paoMonths,expirationDate,almostEmpty:false,rebuyDismissedDate:'',status:product.status==='finished'?'active':product.status,updatedAt:new Date().toISOString()});
+ await tx.done;
+}
 export async function deleteProduct(id: string) { await (await database()).delete('products', id); }
 export async function completeStep(date: string, period: Period, productId: string, completed: boolean) {
  return changeRoutine(date, period, productId, completed ? 'used' : 'pending');

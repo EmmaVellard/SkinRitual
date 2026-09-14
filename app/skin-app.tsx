@@ -17,7 +17,7 @@ import SwapDialog from './swap-dialog';
 import { clearRebuyReminder, routineTime, moveDate, lifecycle, dateLabel } from '@/lib/dates';
 import { swapChoices } from '@/lib/routine-actions';
 import { appPath } from '@/lib/paths';
-import { initializeCabinet, recalculateRoutine, setFavorite, saveSettings, readData, saveProduct, deleteProduct, completeStep, changeRoutine, saveHistory } from '@/lib/database';
+import { openNewBottle, initializeCabinet, recalculateRoutine, setFavorite, saveSettings, readData, saveProduct, deleteProduct, completeStep, changeRoutine, saveHistory } from '@/lib/database';
 
 const blank = (): Product => ({ id: crypto.randomUUID(), brand: '', name: '', category: 'Cleanser', timeOfDay: 'both', routineOrder: 10, autoOrder: true, status: 'active', instruction: '', notes: '', openedDate: '', paoMonths: null, expirationDate: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 type Data = { products: Product[]; routines: RoutineLog[]; settings: RoutineSettings; canUndoRestore?: boolean };
@@ -127,7 +127,7 @@ export default function SkinApp() {
       </>}
 
     </main><footer className="site-footer"><span>{tr("skin ritual.")}</span><span>{tr("A moment of care, every day.")}</span></footer>
-    {detailProduct && <ProductDetails product={detailProduct} busy={busy} onClose={()=>setDetailId(null)} onTag={()=>tag(detailProduct)} onEdit={()=>{setDetailId(null);edit(detailProduct);}}/>}
+    {detailProduct && <ProductDetails product={detailProduct} busy={busy} error={error} onNewBottle={(opened,pao,expiration)=>mutate(()=>openNewBottle(detailProduct.id,detailProduct.updatedAt,opened,pao,expiration))} onClose={()=>setDetailId(null)} onTag={()=>tag(detailProduct)} onEdit={()=>{setDetailId(null);edit(detailProduct);}}/>}
     {historyDraft && <HistoryEditor record={historyDraft.record} products={data.products} busy={busy} error={error} onClose={() => setHistoryDraft(null)} onSave={record => void mutate(() => saveHistory(record, historyDraft.expected), 'Usage record saved.').then(ok => { if (ok) setHistoryDraft(null); })} />}
     {swapId && <SwapDialog name={steps.find(s => s.productId === swapId)?.name ?? 'product'} candidates={swapChoices(draftRecord, swapId, data.products, data.routines, evaluationTime, data.settings)} busy={busy} error={error} onClose={() => setSwapId(null)} onSelect={replacement => void mutate(() => changeRoutine(date, period, swapId, 'swap', replacement), 'Step swapped.').then(ok => { if (ok) setSwapId(null); })} />}
     {editor && <ProductEditor products={data.products} product={editor} existing={data.products.some(p => p.id === editor.id)} busy={busy} error={error} onClose={closeEditor} onSave={async p => { if (await mutate(() => saveProduct(p), 'Product saved.')) closeEditor(); }} onDelete={async () => { if (await mutate(() => deleteProduct(editor.id), 'Product deleted. Existing routine records are kept.')) closeEditor(); }} />}
